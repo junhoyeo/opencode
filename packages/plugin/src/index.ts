@@ -23,12 +23,70 @@ export type ProviderContext = {
   options: Record<string, any>
 }
 
+export type SidebarTextRow = {
+  type: "text"
+  text: string
+  dim?: boolean
+}
+
+export type SidebarKVRow = {
+  type: "kv"
+  key: string
+  value: string
+  dimKey?: boolean
+  dimValue?: boolean
+}
+
+export type SidebarStatusRow = {
+  type: "status"
+  label: string
+  status: "success" | "error" | "warning" | "info" | "muted"
+}
+
+export type SidebarListRow = {
+  type: "list"
+  items: Array<{
+    id: string
+    text: string
+    dim?: boolean
+  }>
+}
+
+export type SidebarBadgeRow = {
+  type: "badge"
+  label: string
+  value: string | number
+  variant?: "default" | "success" | "warning" | "error"
+}
+
+export type SidebarRow = SidebarTextRow | SidebarKVRow | SidebarStatusRow | SidebarListRow | SidebarBadgeRow
+
+export type SidebarSection = {
+  id: string
+  title: string
+  order?: number
+  status?: "info" | "warning" | "error"
+  rows: SidebarRow[]
+}
+
+export type SidebarAPI = {
+  /** Update all sidebar sections for this plugin in a session (full snapshot) */
+  update(sessionID: string, sections: SidebarSection[]): void
+  /** Update or insert a single section by ID */
+  updateSection(sessionID: string, section: SidebarSection): void
+  /** Remove a specific section by ID */
+  removeSection(sessionID: string, sectionID: string): void
+  /** Clear all sections for this plugin in a session */
+  clear(sessionID: string): void
+}
+
 export type PluginInput = {
   client: ReturnType<typeof createOpencodeClient>
   project: Project
   directory: string
   worktree: string
   $: BunShell
+  sidebar: SidebarAPI
 }
 
 export type Plugin = (input: PluginInput) => Promise<Hooks>
