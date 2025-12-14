@@ -25,6 +25,7 @@ import { useExit } from "./exit"
 import { batch, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@opencode-ai/sdk"
+import type { Sidebar } from "@/sidebar"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -50,6 +51,11 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       }
       todo: {
         [sessionID: string]: Todo[]
+      }
+      sidebar: {
+        [sessionID: string]: {
+          [plugin: string]: Sidebar.Section[]
+        }
       }
       message: {
         [sessionID: string]: Message[]
@@ -82,6 +88,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_status: {},
       session_diff: {},
       todo: {},
+      sidebar: {},
       message: {},
       part: {},
       lsp: [],
@@ -135,6 +142,65 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           setStore("todo", event.properties.sessionID, event.properties.todos)
           break
 
+        case "sidebar.updated" as string: {
+          const props = event.properties as { sessionID: string; plugin: string; sections: Sidebar.Section[] }
+          if (!store.sidebar[props.sessionID]) {
+            setStore("sidebar", props.sessionID, {})
+          }
+          setStore("sidebar", props.sessionID, props.plugin, props.sections)
+          break
+        }
+
+        case "sidebar.section.updated" as string: {
+          const props = event.properties as { sessionID: string; plugin: string; section: Sidebar.Section }
+          if (!store.sidebar[props.sessionID]) {
+            setStore("sidebar", props.sessionID, {})
+          }
+          if (!store.sidebar[props.sessionID][props.plugin]) {
+            setStore("sidebar", props.sessionID, props.plugin, [])
+          }
+          setStore(
+            "sidebar",
+            props.sessionID,
+            props.plugin,
+            produce((sections: Sidebar.Section[]) => {
+              const idx = sections.findIndex((s) => s.id === props.section.id)
+              if (idx >= 0) {
+                sections[idx] = props.section
+              } else {
+                sections.push(props.section)
+              }
+            }),
+          )
+          break
+        }
+
+        case "sidebar.section.removed" as string: {
+          const props = event.properties as { sessionID: string; plugin: string; sectionID: string }
+          if (store.sidebar[props.sessionID]?.[props.plugin]) {
+            setStore(
+              "sidebar",
+              props.sessionID,
+              props.plugin,
+              produce((sections: Sidebar.Section[]) => {
+                const idx = sections.findIndex((s) => s.id === props.sectionID)
+                if (idx >= 0) {
+                  sections.splice(idx, 1)
+                }
+              }),
+            )
+          }
+          break
+        }
+
+        case "sidebar.cleared" as string: {
+          const props = event.properties as { sessionID: string; plugin: string }
+          if (store.sidebar[props.sessionID]) {
+            setStore("sidebar", props.sessionID, props.plugin, [])
+          }
+          break
+        }
+
         case "session.diff":
           setStore("session_diff", event.properties.sessionID, event.properties.diff)
           break
@@ -146,6 +212,14 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               "session",
               produce((draft) => {
                 draft.splice(result.index, 1)
+              }),
+            )
+          }
+          if (store.sidebar[event.properties.info.id]) {
+            setStore(
+              "sidebar",
+              produce((draft) => {
+                delete draft[event.properties.info.id]
               }),
             )
           }
