@@ -1,4 +1,4 @@
-import type { Hooks, PluginInput, Plugin as PluginInstance } from "@opencode-ai/plugin"
+import type { Hooks, PluginInput, Plugin as PluginInstance, SidebarSection, SidebarAPI } from "@opencode-ai/plugin"
 import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
@@ -7,9 +7,40 @@ import { Server } from "../server/server"
 import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
+import { Sidebar } from "../sidebar"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
+
+  function extractPluginName(plugin: string): string {
+    if (plugin.startsWith("file://")) {
+      return (
+        plugin
+          .split("/")
+          .pop()
+          ?.replace(/\.(ts|js)$/, "") ?? "local-plugin"
+      )
+    }
+    const lastAtIndex = plugin.lastIndexOf("@")
+    return lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
+  }
+
+  function createSidebarAPI(pluginName: string): SidebarAPI {
+    return {
+      update(sessionID: string, sections: SidebarSection[]) {
+        Sidebar.update({ sessionID, plugin: pluginName, sections })
+      },
+      updateSection(sessionID: string, section: SidebarSection) {
+        Sidebar.updateSection({ sessionID, plugin: pluginName, section })
+      },
+      removeSection(sessionID: string, sectionID: string) {
+        Sidebar.removeSection({ sessionID, plugin: pluginName, sectionID })
+      },
+      clear(sessionID: string) {
+        Sidebar.clear({ sessionID, plugin: pluginName })
+      },
+    }
+  }
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({
@@ -19,7 +50,7 @@ export namespace Plugin {
     })
     const config = await Config.get()
     const hooks = []
-    const input: PluginInput = {
+    const baseInput = {
       client,
       project: Instance.project,
       worktree: Instance.worktree,
@@ -33,11 +64,17 @@ export namespace Plugin {
     }
     for (let plugin of plugins) {
       log.info("loading plugin", { path: plugin })
+      const originalPlugin = plugin
       if (!plugin.startsWith("file://")) {
         const lastAtIndex = plugin.lastIndexOf("@")
         const pkg = lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
         const version = lastAtIndex > 0 ? plugin.substring(lastAtIndex + 1) : "latest"
         plugin = await BunProc.install(pkg, version)
+      }
+      const pluginName = extractPluginName(originalPlugin)
+      const input: PluginInput = {
+        ...baseInput,
+        sidebar: createSidebarAPI(pluginName),
       }
       const mod = await import(plugin)
       for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
@@ -48,7 +85,7 @@ export namespace Plugin {
 
     return {
       hooks,
-      input,
+      input: baseInput,
     }
   })
 
