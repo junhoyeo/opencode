@@ -2,6 +2,7 @@ import { useSync } from "@tui/context/sync"
 import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
+import type { Sidebar as SidebarModule } from "@/sidebar"
 import { Locale } from "@/util/locale"
 import path from "path"
 import type { AssistantMessage } from "@opencode-ai/sdk/v2"
@@ -9,6 +10,113 @@ import { Global } from "@/global"
 import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
+
+function PluginRow(props: { row: SidebarModule.Row }) {
+  const { theme } = useTheme()
+
+  return (
+    <Switch>
+      <Match when={props.row.type === "text" && props.row}>
+        {(row) => <text fg={row().dim ? theme.textMuted : theme.text}>{row().text}</text>}
+      </Match>
+      <Match when={props.row.type === "kv" && props.row}>
+        {(row) => (
+          <box flexDirection="row" gap={1}>
+            <text fg={row().dimKey !== false ? theme.textMuted : theme.text}>{row().key}</text>
+            <text fg={row().dimValue ? theme.textMuted : theme.text}>{row().value}</text>
+          </box>
+        )}
+      </Match>
+      <Match when={props.row.type === "status" && props.row}>
+        {(row) => (
+          <box flexDirection="row" gap={1}>
+            <text
+              flexShrink={0}
+              fg={
+                {
+                  success: theme.success,
+                  error: theme.error,
+                  warning: theme.warning,
+                  info: theme.textMuted,
+                  muted: theme.textMuted,
+                }[row().status]
+              }
+            >
+              •
+            </text>
+            <text fg={theme.text}>{row().label}</text>
+          </box>
+        )}
+      </Match>
+      <Match when={props.row.type === "list" && props.row}>
+        {(row) => (
+          <For each={row().items}>
+            {(item) => <text fg={item.dim ? theme.textMuted : theme.text}>{item.text}</text>}
+          </For>
+        )}
+      </Match>
+      <Match when={props.row.type === "badge" && props.row}>
+        {(row) => (
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.textMuted}>{row().label}</text>
+            <text
+              fg={
+                {
+                  default: theme.text,
+                  success: theme.success,
+                  warning: theme.warning,
+                  error: theme.error,
+                }[row().variant ?? "default"]
+              }
+            >
+              {row().value}
+            </text>
+          </box>
+        )}
+      </Match>
+    </Switch>
+  )
+}
+
+function PluginSection(props: {
+  section: SidebarModule.Section & { plugin: string }
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const { theme } = useTheme()
+  const hasContent = () => props.section.rows.length > 0
+
+  return (
+    <Show when={hasContent()}>
+      <box>
+        <box flexDirection="row" gap={1} onMouseDown={() => props.section.rows.length > 2 && props.onToggle()}>
+          <Show when={props.section.rows.length > 2}>
+            <text fg={theme.text}>{props.expanded ? "▼" : "▶"}</text>
+          </Show>
+          <text fg={theme.text}>
+            <b>{props.section.title}</b>
+          </text>
+          <Show when={props.section.status}>
+            <text
+              fg={
+                {
+                  info: theme.textMuted,
+                  warning: theme.warning,
+                  error: theme.error,
+                }[props.section.status!]
+              }
+            >
+              •
+            </text>
+          </Show>
+        </box>
+        <Show when={props.section.rows.length <= 2 || props.expanded}>
+          <For each={props.section.rows}>{(row) => <PluginRow row={row} />}</For>
+        </Show>
+      </box>
+    </Show>
+  )
+}
 
 export function Sidebar(props: { sessionID: string }) {
   const sync = useSync()
@@ -18,6 +126,17 @@ export function Sidebar(props: { sessionID: string }) {
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
 
+  const pluginSidebar = createMemo(() => sync.data.sidebar[props.sessionID] ?? {})
+  const pluginSections = createMemo(() => {
+    const all: Array<SidebarModule.Section & { plugin: string }> = []
+    for (const [plugin, sections] of Object.entries(pluginSidebar())) {
+      for (const section of sections) {
+        all.push({ ...section, plugin })
+      }
+    }
+    return all.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+  })
+
   const [expanded, setExpanded] = createStore({
     mcp: true,
     diff: true,
@@ -25,8 +144,10 @@ export function Sidebar(props: { sessionID: string }) {
     lsp: true,
   })
 
+  const [pluginExpanded, setPluginExpanded] = createStore<Record<string, boolean>>({})
+
   // Sort MCP servers alphabetically for consistent display order
-  const mcpEntries = createMemo(() => Object.entries(sync.data.mcp).sort(([a], [b]) => a.localeCompare(b)))
+  const mcpEntries = createMemo(() => Object.entries(sync.data.mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
 
   const cost = createMemo(() => {
     const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
@@ -245,6 +366,19 @@ export function Sidebar(props: { sessionID: string }) {
                 </Show>
               </box>
             </Show>
+            <For each={pluginSections()}>
+              {(section) => {
+                const key = `${section.plugin}:${section.id}`
+                const isExpanded = () => pluginExpanded[key] ?? true
+                return (
+                  <PluginSection
+                    section={section}
+                    expanded={isExpanded()}
+                    onToggle={() => setPluginExpanded(key, !isExpanded())}
+                  />
+                )
+              }}
+            </For>
           </box>
         </scrollbox>
 
