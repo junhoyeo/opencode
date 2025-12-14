@@ -36,6 +36,7 @@ import { SessionCompaction } from "../session/compaction"
 import { SessionRevert } from "../session/revert"
 import { lazy } from "../util/lazy"
 import { Todo } from "../session/todo"
+import { Sidebar } from "../sidebar"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { MCP } from "../mcp"
 import { Storage } from "../storage/storage"
@@ -703,6 +704,36 @@ export namespace Server {
           const sessionID = c.req.valid("param").sessionID
           const todos = await Todo.get(sessionID)
           return c.json(todos)
+        },
+      )
+      .get(
+        "/session/:sessionID/sidebar",
+        describeRoute({
+          summary: "Get session sidebar",
+          description: "Retrieve the plugin sidebar sections associated with a specific session.",
+          operationId: "session.sidebar",
+          responses: {
+            200: {
+              description: "Sidebar state",
+              content: {
+                "application/json": {
+                  schema: resolver(z.record(z.string(), Sidebar.Section.array())),
+                },
+              },
+            },
+            ...errors(400, 404),
+          },
+        }),
+        validator(
+          "param",
+          z.object({
+            sessionID: z.string().meta({ description: "Session ID" }),
+          }),
+        ),
+        async (c) => {
+          const sessionID = c.req.valid("param").sessionID
+          const sidebar = await Sidebar.get(sessionID)
+          return c.json(sidebar)
         },
       )
       .post(

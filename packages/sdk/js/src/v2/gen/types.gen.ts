@@ -637,6 +637,117 @@ export type EventVcsBranchUpdated = {
   }
 }
 
+export type EventSidebarUpdated = {
+  type: "sidebar.updated"
+  properties: {
+    sessionID: string
+    plugin: string
+    sections: Array<{
+      id: string
+      title: string
+      order?: number
+      status?: "info" | "warning" | "error"
+      rows: Array<
+        | {
+            type: "text"
+            text: string
+            dim?: boolean
+          }
+        | {
+            type: "kv"
+            key: string
+            value: string
+            dimKey?: boolean
+            dimValue?: boolean
+          }
+        | {
+            type: "status"
+            label: string
+            status: "success" | "error" | "warning" | "info" | "muted"
+          }
+        | {
+            type: "list"
+            items: Array<{
+              id: string
+              text: string
+              dim?: boolean
+            }>
+          }
+        | {
+            type: "badge"
+            label: string
+            value: string | number
+            variant?: "default" | "success" | "warning" | "error"
+          }
+      >
+    }>
+  }
+}
+
+export type EventSidebarSectionUpdated = {
+  type: "sidebar.section.updated"
+  properties: {
+    sessionID: string
+    plugin: string
+    section: {
+      id: string
+      title: string
+      order?: number
+      status?: "info" | "warning" | "error"
+      rows: Array<
+        | {
+            type: "text"
+            text: string
+            dim?: boolean
+          }
+        | {
+            type: "kv"
+            key: string
+            value: string
+            dimKey?: boolean
+            dimValue?: boolean
+          }
+        | {
+            type: "status"
+            label: string
+            status: "success" | "error" | "warning" | "info" | "muted"
+          }
+        | {
+            type: "list"
+            items: Array<{
+              id: string
+              text: string
+              dim?: boolean
+            }>
+          }
+        | {
+            type: "badge"
+            label: string
+            value: string | number
+            variant?: "default" | "success" | "warning" | "error"
+          }
+      >
+    }
+  }
+}
+
+export type EventSidebarSectionRemoved = {
+  type: "sidebar.section.removed"
+  properties: {
+    sessionID: string
+    plugin: string
+    sectionID: string
+  }
+}
+
+export type EventSidebarCleared = {
+  type: "sidebar.cleared"
+  properties: {
+    sessionID: string
+    plugin: string
+  }
+}
+
 export type EventTuiPromptAppend = {
   type: "tui.prompt.append"
   properties: {
@@ -758,6 +869,10 @@ export type Event =
   | EventSessionError
   | EventFileWatcherUpdated
   | EventVcsBranchUpdated
+  | EventSidebarUpdated
+  | EventSidebarSectionUpdated
+  | EventSidebarSectionRemoved
+  | EventSidebarCleared
   | EventTuiPromptAppend
   | EventTuiCommandExecute
   | EventTuiToastShow
@@ -2510,6 +2625,82 @@ export type SessionTodoResponses = {
 }
 
 export type SessionTodoResponse = SessionTodoResponses[keyof SessionTodoResponses]
+
+export type SessionSidebarData = {
+  body?: never
+  path: {
+    /**
+     * Session ID
+     */
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/session/{sessionID}/sidebar"
+}
+
+export type SessionSidebarErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionSidebarError = SessionSidebarErrors[keyof SessionSidebarErrors]
+
+export type SessionSidebarResponses = {
+  /**
+   * Sidebar state
+   */
+  200: {
+    [key: string]: Array<{
+      id: string
+      title: string
+      order?: number
+      status?: "info" | "warning" | "error"
+      rows: Array<
+        | {
+            type: "text"
+            text: string
+            dim?: boolean
+          }
+        | {
+            type: "kv"
+            key: string
+            value: string
+            dimKey?: boolean
+            dimValue?: boolean
+          }
+        | {
+            type: "status"
+            label: string
+            status: "success" | "error" | "warning" | "info" | "muted"
+          }
+        | {
+            type: "list"
+            items: Array<{
+              id: string
+              text: string
+              dim?: boolean
+            }>
+          }
+        | {
+            type: "badge"
+            label: string
+            value: string | number
+            variant?: "default" | "success" | "warning" | "error"
+          }
+      >
+    }>
+  }
+}
+
+export type SessionSidebarResponse = SessionSidebarResponses[keyof SessionSidebarResponses]
 
 export type SessionInitData = {
   body?: {

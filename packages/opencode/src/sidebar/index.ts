@@ -1,5 +1,6 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
+import { Storage } from "../storage/storage"
 import z from "zod"
 
 export namespace Sidebar {
@@ -85,19 +86,47 @@ export namespace Sidebar {
     ),
   }
 
-  export function update(input: { sessionID: string; plugin: string; sections: Section[] }) {
+  export type State = Record<string, Section[]>
+
+  export async function get(sessionID: string): Promise<State> {
+    return Storage.read<State>(["sidebar", sessionID])
+      .then((x) => x || {})
+      .catch(() => ({}))
+  }
+
+  export async function update(input: { sessionID: string; plugin: string; sections: Section[] }) {
+    const state = await get(input.sessionID)
+    state[input.plugin] = input.sections
+    await Storage.write(["sidebar", input.sessionID], state)
     Bus.publish(Event.Updated, input)
   }
 
-  export function updateSection(input: { sessionID: string; plugin: string; section: Section }) {
+  export async function updateSection(input: { sessionID: string; plugin: string; section: Section }) {
+    const state = await get(input.sessionID)
+    if (!state[input.plugin]) state[input.plugin] = []
+    const idx = state[input.plugin].findIndex((s) => s.id === input.section.id)
+    if (idx >= 0) {
+      state[input.plugin][idx] = input.section
+    } else {
+      state[input.plugin].push(input.section)
+    }
+    await Storage.write(["sidebar", input.sessionID], state)
     Bus.publish(Event.SectionUpdated, input)
   }
 
-  export function removeSection(input: { sessionID: string; plugin: string; sectionID: string }) {
+  export async function removeSection(input: { sessionID: string; plugin: string; sectionID: string }) {
+    const state = await get(input.sessionID)
+    if (state[input.plugin]) {
+      state[input.plugin] = state[input.plugin].filter((s) => s.id !== input.sectionID)
+      await Storage.write(["sidebar", input.sessionID], state)
+    }
     Bus.publish(Event.SectionRemoved, input)
   }
 
-  export function clear(input: { sessionID: string; plugin: string }) {
+  export async function clear(input: { sessionID: string; plugin: string }) {
+    const state = await get(input.sessionID)
+    state[input.plugin] = []
+    await Storage.write(["sidebar", input.sessionID], state)
     Bus.publish(Event.Cleared, input)
   }
 }

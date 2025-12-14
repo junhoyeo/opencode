@@ -142,48 +142,48 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           setStore("todo", event.properties.sessionID, event.properties.todos)
           break
 
-        case "sidebar.updated" as string: {
-          const props = event.properties as { sessionID: string; plugin: string; sections: Sidebar.Section[] }
-          if (!store.sidebar[props.sessionID]) {
-            setStore("sidebar", props.sessionID, {})
+        case "sidebar.updated": {
+          const { sessionID, plugin, sections } = event.properties
+          if (!store.sidebar[sessionID]) {
+            setStore("sidebar", sessionID, {})
           }
-          setStore("sidebar", props.sessionID, props.plugin, props.sections)
+          setStore("sidebar", sessionID, plugin, sections as Sidebar.Section[])
           break
         }
 
-        case "sidebar.section.updated" as string: {
-          const props = event.properties as { sessionID: string; plugin: string; section: Sidebar.Section }
-          if (!store.sidebar[props.sessionID]) {
-            setStore("sidebar", props.sessionID, {})
+        case "sidebar.section.updated": {
+          const { sessionID, plugin, section } = event.properties
+          if (!store.sidebar[sessionID]) {
+            setStore("sidebar", sessionID, {})
           }
-          if (!store.sidebar[props.sessionID][props.plugin]) {
-            setStore("sidebar", props.sessionID, props.plugin, [])
+          if (!store.sidebar[sessionID][plugin]) {
+            setStore("sidebar", sessionID, plugin, [])
           }
           setStore(
             "sidebar",
-            props.sessionID,
-            props.plugin,
+            sessionID,
+            plugin,
             produce((sections: Sidebar.Section[]) => {
-              const idx = sections.findIndex((s) => s.id === props.section.id)
+              const idx = sections.findIndex((s) => s.id === section.id)
               if (idx >= 0) {
-                sections[idx] = props.section
+                sections[idx] = section as Sidebar.Section
               } else {
-                sections.push(props.section)
+                sections.push(section as Sidebar.Section)
               }
             }),
           )
           break
         }
 
-        case "sidebar.section.removed" as string: {
-          const props = event.properties as { sessionID: string; plugin: string; sectionID: string }
-          if (store.sidebar[props.sessionID]?.[props.plugin]) {
+        case "sidebar.section.removed": {
+          const { sessionID, plugin, sectionID } = event.properties
+          if (store.sidebar[sessionID]?.[plugin]) {
             setStore(
               "sidebar",
-              props.sessionID,
-              props.plugin,
+              sessionID,
+              plugin,
               produce((sections: Sidebar.Section[]) => {
-                const idx = sections.findIndex((s) => s.id === props.sectionID)
+                const idx = sections.findIndex((s) => s.id === sectionID)
                 if (idx >= 0) {
                   sections.splice(idx, 1)
                 }
@@ -193,10 +193,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           break
         }
 
-        case "sidebar.cleared" as string: {
-          const props = event.properties as { sessionID: string; plugin: string }
-          if (store.sidebar[props.sessionID]) {
-            setStore("sidebar", props.sessionID, props.plugin, [])
+        case "sidebar.cleared": {
+          const { sessionID, plugin } = event.properties
+          if (store.sidebar[sessionID]) {
+            setStore("sidebar", sessionID, plugin, [])
           }
           break
         }
@@ -410,11 +410,12 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         },
         async sync(sessionID: string) {
           if (fullSyncedSessions.has(sessionID)) return
-          const [session, messages, todo, diff] = await Promise.all([
+          const [session, messages, todo, diff, sidebar] = await Promise.all([
             sdk.client.session.get({ sessionID }, { throwOnError: true }),
             sdk.client.session.messages({ sessionID, limit: 100 }),
             sdk.client.session.todo({ sessionID }),
             sdk.client.session.diff({ sessionID }),
+            sdk.client.session.sidebar({ sessionID }),
           ])
           setStore(
             produce((draft) => {
@@ -422,6 +423,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               if (match.found) draft.session[match.index] = session.data!
               if (!match.found) draft.session.splice(match.index, 0, session.data!)
               draft.todo[sessionID] = todo.data ?? []
+              draft.sidebar[sessionID] = (sidebar.data ?? {}) as Record<string, Sidebar.Section[]>
               draft.message[sessionID] = messages.data!.map((x) => x.info)
               for (const message of messages.data!) {
                 draft.part[message.info.id] = message.parts
